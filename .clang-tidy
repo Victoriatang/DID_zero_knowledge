@@ -1,0 +1,18 @@
+Checks: >
+  bugprone-*,
+  performance-*,
+  readability-*,
+  modernize-*,
+  portability-*,
+  -readability-identifier-length,
+  -modernize-use-trailing-return-type
+WarningsAsErrors: ''
+HeaderFilterRegex: '^(include/mpbbs|src|tests)/'
+FormatStyle: file
+CheckOptions:
+  - key: readability-function-size.LineThreshold
+    value: '200'
+  - key: readability-magic-numbers.IgnoredIntegerValues
+    value: '0;1;2'
+  - key: modernize-use-nullptr.NullMacros
+    value: 'NULL'

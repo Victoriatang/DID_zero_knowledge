@@ -1,0 +1,6 @@
+[submodule "include/mcl"]
+	path = include/mcl
+	url = https://github.com/herumi/mcl.git
+[submodule "include/bicycl"]
+	path = include/bicycl
+	url = https://gite.lirmm.fr/crypto/bicycl.git

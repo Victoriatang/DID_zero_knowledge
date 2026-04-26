@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Init submodules
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive
+
+      - name: Verify dependency layout
+        run: |
+          test -f include/mcl/CMakeLists.txt
+          test -f include/bicycl/CMakeLists.txt
+
+      - name: Setup CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: ^3.29.0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ make libgmp-dev libssl-dev
+
+      - name: Show tool versions
+        run: |
+          cmake --version
+          c++ --version
+
+      - name: Configure
+        run: cmake -S . -B build -DMPBBS_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  warnings-as-errors:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Init submodules
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive
+
+      - name: Verify dependency layout
+        run: |
+          test -f include/mcl/CMakeLists.txt
+          test -f include/bicycl/CMakeLists.txt
+
+      - name: Setup CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: ^3.29.0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ make libgmp-dev libssl-dev
+
+      - name: Show tool versions
+        run: |
+          cmake --version
+          c++ --version
+
+      - name: Configure
+        run: cmake -S . -B build -DMPBBS_BUILD_TESTS=ON -DMPBBS_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  sanitizers:
+    runs-on: ubuntu-24.04
+    env:
+      CC: clang
+      CXX: clang++
+      ASAN_OPTIONS: detect_leaks=0:halt_on_error=1
+      UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Init submodules
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive
+
+      - name: Verify dependency layout
+        run: |
+          test -f include/mcl/CMakeLists.txt
+          test -f include/bicycl/CMakeLists.txt
+
+      - name: Setup CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: ^3.29.0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang make libgmp-dev libssl-dev
+
+      - name: Show tool versions
+        run: |
+          cmake --version
+          clang++ --version
+
+      - name: Configure
+        run: cmake -S . -B build -DMPBBS_BUILD_TESTS=ON -DMPBBS_ENABLE_SANITIZERS=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
