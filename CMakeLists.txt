@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.29)
-project(MultipartyBBSPlus LANGUAGES CXX)
+project(BBSDID LANGUAGES CXX)
 
 option(BBSAC_BUILD_TESTS "Build tests" ON)
 option(BBSAC_WARNINGS_AS_ERRORS "Treat warnings as errors for project targets" OFF)
