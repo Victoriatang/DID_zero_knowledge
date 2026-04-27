@@ -1,2 +1,0 @@
-/Library/Developer/CommandLineTools/usr/bin/ar qc libbbsac_core.a CMakeFiles/bbsac_core.dir/src/BBS_signature/prove.cpp.o CMakeFiles/bbsac_core.dir/src/BBS_signature/range_proof.cpp.o CMakeFiles/bbsac_core.dir/src/BBS_signature/sign.cpp.o
-/Library/Developer/CommandLineTools/usr/bin/ranlib libbbsac_core.a
