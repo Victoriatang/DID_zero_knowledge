@@ -1,0 +1,1 @@
+/Library/Developer/CommandLineTools/usr/bin/c++ -O3 -DNDEBUG -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX14.4.sdk -dynamiclib -Wl,-headerpad_max_install_names -compatibility_version 3.0.0 -current_version 3.3.0 -o ../../lib/libmcl.3.3.dylib -install_name @rpath/libmcl.3.dylib CMakeFiles/mcl.dir/src/fp.cpp.o  bint64.o base64.o

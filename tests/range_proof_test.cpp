@@ -8,7 +8,7 @@
 #include <random>
 #include "BBS_signature/range_proof.h"
 
-// 计时工具
+// Timer utility
 struct Timer {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     std::string name;
@@ -24,51 +24,54 @@ struct Timer {
 };
 
 
-// 辅助函数：根据索引生成确定的伪随机点 (对应 Rust 的 generate_random_point)
+// Helper function: Generate deterministic pseudo-random points based on index (equivalent to Rust's generate_random_point)
 G1 generate_test_point(size_t index, const std::string& label) {
     std::string seed = label + std::to_string(index);
     G1 P;
     mcl::hashAndMapToG1(P, seed);
     return P;
 }
-// 用标签字符串确定性地生成一个 G1 点
+
+// Deterministically generate a G1 point using a label string
 static G1 hashToG1(const std::string& label) {
     G1 out;
     mcl::hashAndMapToG1(out, label.data(), label.size());
     return out;
 }
+
 static G1 hashToG1WithIndex(uint32_t index, uint32_t seed) {
-    // label = seed + index，转成字符串作为哈希输入
+    // label = seed + index, converted to string as hash input
     std::string label = std::to_string((uint64_t)seed + index);
     return hashToG1(label);
 }
+
 void test_inner_product_argument(size_t n) {
     std::cout << "Running IPA test for n = " << n << "..." << std::endl;
 
-    // 1. 初始化基点向量 g_vec 和 h_vec
+    // 1. Initialize basis point vectors g_vec and h_vec
     std::vector<G1> g_vec(n);
     std::vector<G1> h_vec(n);
     std::string label = "innerproduct";
 
     for (size_t i = 0; i < n; ++i) {
         g_vec[i] = generate_test_point(i, label);
-        h_vec[i] = generate_test_point(i + n, label); // 偏移 n 以确保不同
+        h_vec[i] = generate_test_point(i + n, label); // Offset by n to ensure distinctness
     }
 
-    // 2. 生成辅助基点 Gx (ux)
+    // 2. Generate auxiliary basis point Gx (ux)
     G1 Gx = generate_test_point(999, "Gx_label");
 
-    // 3. 生成随机秘密向量 a 和 b
+    // 3. Generate random secret vectors a and b
     std::vector<Fr> a(n), b(n);
     for (size_t i = 0; i < n; ++i) {
         a[i].setByCSPRNG();
         b[i].setByCSPRNG();
     }
 
-    // 4. 计算内积 c = <a, b>
+    // 4. Calculate inner product c = <a, b>
     Fr c = inner_product(a, b);
 
-    // 5. 模拟 hi_tag 计算 (对应 Rust 的 y 盲化逻辑)
+    // 5. Simulate hi_tag calculation (equivalent to Rust's y-blinding logic)
     std::vector<G1> hi_tag = h_vec; 
     
     Fr y; y.setByCSPRNG();
@@ -80,7 +83,7 @@ void test_inner_product_argument(size_t n) {
     }
     
 
-    // 6. 构造承诺 P = MSM(g_vec, a) + MSM(hi_tag, b) + Gx * c
+    // 6. Construct commitment P = MSM(g_vec, a) + MSM(hi_tag, b) + Gx * c
     G1 P, tmp;
     G1::mulVec(P, g_vec.data(), a.data(), n);   // P = sum(a_i * g_i)
     G1::mulVec(tmp, hi_tag.data(), b.data(), n); // tmp = sum(b_i * h_i)
@@ -90,14 +93,14 @@ void test_inner_product_argument(size_t n) {
     G1::mul(ux_c, Gx, c);
     G1::add(P, P, ux_c); // P = P + Gx * c
 
-    // 7. 执行证明 (Prover)
+    // 7. Execute Proof (Prover)
     std::vector<G1> L_vec, R_vec;
     InnerProductArg ipp = prove(g_vec, hi_tag, Gx, P, a, b, L_vec, R_vec);
 
-    // 8. 执行验证 (Verifier)
+    // 8. Execute Verification (Verifier)
     bool is_valid = fast_verify(ipp, g_vec, hi_tag, Gx, P);
 
-    // 9. 断言结果
+    // 9. Assert result
     if (is_valid) {
         std::cout << "Test PASSED for n = " << n << std::endl;
     } else {
@@ -109,33 +112,33 @@ void test_inner_product_argument(size_t n) {
 void test_helper_range_proof(uint32_t seed, size_t n, size_t m) {
     const size_t nm = n * m;
 
-    // G = 固定生成元（对应 Rust 的 Point::generator()）
+    // G = Fixed generator (equivalent to Rust's Point::generator())
     G1 G;
     mcl::hashAndMapToG1(G, "generator_G", 11);
 
-    // H = hash("1") 映射到的点（对应 Rust 的 label=1）
+    // H = Hash("1") mapped to a point (equivalent to Rust's label=1)
     G1 H = hashToG1("1");
 
-    // g_vec[i] 对应 Rust 的 hash(i + seed)
+    // g_vec[i] equivalent to Rust's hash(i + seed)
     std::vector<G1> g_vec(nm);
     for (size_t i = 0; i < nm; i++) {
         g_vec[i] = hashToG1WithIndex(static_cast<uint32_t>(i), seed);
     }
 
-    // h_vec[i] 对应 Rust 的 hash(n + i + seed)
+    // h_vec[i] equivalent to Rust's hash(n + i + seed)
     std::vector<G1> h_vec(nm);
     for (size_t i = 0; i < nm; i++) {
         h_vec[i] = hashToG1WithIndex(static_cast<uint32_t>(n + i), seed);
     }
 
-    // range = 2^n，v_vec[i] ∈ [0, 2^n)
-    // 用 C++ 随机数生成，模拟 BigInt::sample_below(&range)
-    std::mt19937 rng(seed);  // 用 seed 初始化，保证可复现
-    uint64_t range = (uint64_t)1 << n;  // 假设 n <= 63
+    // range = 2^n, v_vec[i] in [0, 2^n)
+    // Using C++ RNG to simulate BigInt::sample_below(&range)
+    std::mt19937 rng(seed);  // Initialize with seed for reproducibility
+    uint64_t range = (uint64_t)1 << n;  // Assuming n <= 63
     auto sampleBelow = [&]() -> Fr {
         uint64_t val = rng() % range;
         Fr r;
-        r = (int64_t)val;  // mcl Fr 支持从整数赋值
+        r = (int64_t)val;  // mcl Fr supports assignment from integer
         return r;
     };
 
@@ -168,7 +171,7 @@ void test_helper_range_proof(uint32_t seed, size_t n, size_t m) {
 
     }
     
-    // 9. 断言结果
+    // 9. Assert result
     if (ok) {
         std::cout << "Range Proof Test PASSED for n = " << n << std::endl;
     } else {

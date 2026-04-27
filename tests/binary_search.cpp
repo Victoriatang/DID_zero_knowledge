@@ -10,7 +10,7 @@
 
 using namespace mcl;
 
-// ── 计时工具 ──────────────────────────────────────────────────────────────────
+// ── Time tool ──────────────────────────────────────────────────────────────────
 struct Timer {
     std::chrono::time_point<std::chrono::high_resolution_clock> start;
     std::string name;
@@ -24,7 +24,7 @@ struct Timer {
     }
 };
 
-// ── G1 序列化（48字节二进制，比十六进制字符串快且省空间）────────────────────
+// ── G1 Serialization ────────────────────
 static constexpr size_t G1_BYTES = 48;
 
 static void g1ToBytes(const G1& p, uint8_t out[G1_BYTES]) {
@@ -53,9 +53,6 @@ static bool g1Equal(const G1& a, const G1& b) {
     return std::memcmp(ba, bb, G1_BYTES) == 0;
 }
 
-// ── 文件格式：data 文件每条固定 48 字节，index 文件每条固定 8 字节偏移 ────────
-// data文件：N * 48 字节，第 i 条 = data[i*48 .. i*48+48]
-// 有了固定长度就不需要单独的 index 文件了
 
 static void saveAllBinary(const std::string& filename, const std::vector<G1>& arr) {
     std::ofstream ofs(filename, std::ios::binary);
@@ -66,7 +63,7 @@ static void saveAllBinary(const std::string& filename, const std::vector<G1>& ar
     }
 }
 
-// 直接用 seekg 跳到第 idx 条，只读 48 字节
+// Directly jump to the idx-th record using seekg and read only 48 bytes
 static G1 readG1AtBinary(std::ifstream& ifs, size_t idx) {
     ifs.seekg(static_cast<std::streamoff>(idx * G1_BYTES));
     uint8_t buf[G1_BYTES];
@@ -74,7 +71,7 @@ static G1 readG1AtBinary(std::ifstream& ifs, size_t idx) {
     return bytesToG1(buf);
 }
 
-// 文件版二分查找（保持文件打开，避免反复 open/close）
+// File-based binary search (keep file open to avoid repeated open/close overhead)
 int binarySearchBinary(const std::string& filename, size_t N, const G1& target) {
     uint8_t target_bytes[G1_BYTES];
     g1ToBytes(target, target_bytes);
@@ -95,7 +92,7 @@ int binarySearchBinary(const std::string& filename, size_t N, const G1& target) 
     return -1;
 }
 
-// 内存版二分查找（对比用）
+// In-memory binary search (for performance comparison)
 int binarySearchMem(const std::vector<G1>& arr, const G1& target) {
     int left = 0, right = static_cast<int>(arr.size()) - 1;
     while (left <= right) {
@@ -116,7 +113,7 @@ int main() {
     G1 base;
     mcl::hashAndMapToG1(base, "base", 4);
     
-    /*// ── 1. 生成、排序、保存 ──────────────────────────────────────────────────
+    /*// ── 1. Generate, Sort, and Save ──────────────────────────────────────────────────
     std::vector<G1> arr(N);
     {
         Timer t("generate");
@@ -137,17 +134,17 @@ int main() {
            static_cast<double>(N * G1_BYTES) / 1e6);
            */
 
-    // ── 2. 取几个测试目标（已在内存里，不计入查找时间）────────────────────────
+    // ── 2. Pick test targets (already in memory, lookup time not counted) ────────────────────────
     std::vector<size_t> test_indices = {0, N/4, N/2, N*3/4, N-1};
     std::vector<G1> targets;
     std::ifstream ifs(filename);
     for (size_t i : test_indices) targets.push_back(readG1AtBinary(ifs,i));
 
-    // absent 点
+    // Absent point
     Fr r_absent; r_absent.setByCSPRNG();
     G1 absent; G1::mul(absent, base, r_absent);
 
-    // ── 3. 文件版二分查找计时 ────────────────────────────────────────────────
+    // ── 3. File-based binary search timing ────────────────────────────────────────────────
     printf("=== binary search (file, fixed-width binary) ===\n");
     for (size_t k = 0; k < targets.size(); k++) {
         int idx;
@@ -168,7 +165,7 @@ int main() {
     }
     /*
 
-    // ── 4. 内存版二分查找对比 ────────────────────────────────────────────────
+    // ── 4. In-memory binary search comparison ────────────────────────────────────────────────
     printf("=== binary search (in-memory, for comparison) ===\n");
     for (size_t k = 0; k < targets.size(); k++) {
         int idx;
