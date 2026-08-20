@@ -372,9 +372,9 @@ void ACProof::GenMatrials(const std::vector<mcl::Fr>& messages,
         wt.m_r = messages[1];
         wt.sig = sig;
 
-        std::mt19937 rng(0);  // 用 seed 初始化，保证可复现
+        std::mt19937 rng(0);  
         uint64_t val = rng() % pp_.N;
-        wt.ctr = (int64_t)val;  // mcl Fr 支持从整数赋值
+        wt.ctr = (int64_t)val;  
         wt.r_T.setByCSPRNG();
         wt.r_vk.setByCSPRNG();
         mcl::Fr r1;

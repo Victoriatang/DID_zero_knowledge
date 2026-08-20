@@ -41,9 +41,9 @@ mcl::G1 BBS::compute_B(const std::vector<mcl::Fr>& messages, const PublicKey& pk
 
     for (size_t i = 0; i < messages.size(); ++i) {
         mcl::G1 term;
-        // 执行点乘：term = h_i * m_i
+        // term = h_i * m_i
         mcl::G1::mul(term, pk.pks_g1[i], messages[i]);
-        // 执行点加：B = B + term
+        // B = B + term
         B += term;
     }
     return B;
