@@ -3,6 +3,7 @@
 
 #include "sign.h"
 #include "bicycl.hpp"
+
 struct mcl_ST {
     mcl::G1 null, B_sid;
 };
@@ -13,18 +14,15 @@ struct mcl_WT {
 };
 
 struct mcl_COM {
-    mcl::G1 A_bar, B_bar, N_bar; 
+    mcl::G1 A_bar, B_bar, N_bar;
     mcl::G1 U_N1, U_N2, U_barB, U_Bprime;
 };
+
 inline
 static void Fr_to_Mpz(BICYCL::Mpz& out, const mcl::Fr& fr) {
-   /* uint8_t buf[32];
-    fr.serialize(buf, sizeof(buf));          // mcl 小端序列化
-    mpz_import(out.get_mpz_t(), 1, -1,       // -1 = 小端 word 序
-               sizeof(buf), -1, 0, buf);     // -1 = 小端 byte 序
-               */
     out = fr.getStr();
 }
+
 inline
 static mcl::Fr computeChallenge(
     const mcl::G1& null_pt,
@@ -37,19 +35,20 @@ static mcl::Fr computeChallenge(
     // statement
     oss << null_pt << B_sid;
 
-    oss << C_sid.c1()<<C_sid.c2();
+    oss << C_sid.c1() << C_sid.c2();
     // commitment values
     oss << com.A_bar << com.B_bar << com.N_bar
         << com.U_N1  << com.U_N2
         << com.U_barB << com.U_Bprime;
     // C'
-    oss << C_prime.c1()<<C_prime.c2();
+    oss << C_prime.c1() << C_prime.c2();
 
     mcl::Fr ch;
     const std::string s = oss.str();
     ch.setHashOf(s.data(), s.size());
     return ch;
 }
+
 struct IssueParams {
     const BBSParams&               params_;
     const BBS::PublicKey&          pk_;
@@ -69,12 +68,12 @@ struct IssueParams {
     }
 };
 
-
 struct mcl_RESP {
     mcl::Fr beta_r, beta_usk, beta_ob, beta_e, beta_sid, beta_mr;
     BICYCL::Mpz beta_rho;
-};  
-inline 
+};
+
+inline
 BICYCL::CL_HSMqk::CipherText GenIssueMaterial(
     const IssueParams&    pp,
     const std::vector<mcl::Fr>& messages,
@@ -92,7 +91,7 @@ BICYCL::CL_HSMqk::CipherText GenIssueMaterial(
     const mcl::G1& H1  = bpk.pks_g1[0];
     const mcl::G1& H2  = bpk.pks_g1[1];
     const mcl::G1& H_s = pp.H_s;
- 
+
     // ----------------------------------------------------------
     // Get usk and r_ob from messages
     // ----------------------------------------------------------
@@ -100,40 +99,40 @@ BICYCL::CL_HSMqk::CipherText GenIssueMaterial(
     wt.usk  = messages[0];
     wt.r_ob = messages[1];
     wt.sig  = sig;
- 
+
     // ----------------------------------------------------------
-    // Step 1. 计算 Nullifier
-    //   null ← usk · H_s ∈ G1
+    // Step 1. Compute the nullifier
+    //   null <- usk * H_s in G1
     // ----------------------------------------------------------
     mcl::G1::mul(st.null, H_s, wt.usk);
- 
+
     // ----------------------------------------------------------
-    // Step 2a. Pick sid ←$ Z_q
-    //          Encrypt：C_sid = (g_q^ρ, f^sid · pk_cl^ρ)
+    // Step 2a. Pick sid <-$ Z_q
+    //          Encrypt: C_sid = (g_q^rho, f^sid * pk_cl^rho)
     // ----------------------------------------------------------
     wt.sid.setByCSPRNG();
- 
-    // 将 sid (mcl::Fr) 转为 BICYCL::Mpz
+
+    // Convert sid (mcl::Fr) to BICYCL::Mpz
     BICYCL::Mpz sid_mpz;
     Fr_to_Mpz(sid_mpz, wt.sid);
- 
-    // Pick ρ ←$ [0,bound]
+
+    // Pick rho <-$ [0, bound]
     {
-        BICYCL::Mpz bound(CL.encrypt_randomness_bound());   
+        BICYCL::Mpz bound(CL.encrypt_randomness_bound());
         rho = rng.random_mpz(bound);
     }
- 
-    // C_sid = CL.Enc(pk_cl, sid; ρ)
+
+    // C_sid = CL.Enc(pk_cl, sid; rho)
     BICYCL::CL_HSMqk::CipherText C_sid =
         CL.encrypt(cl_pk, BICYCL::CL_HSMqk::ClearText(CL, sid_mpz), rho);
- 
+
     // ----------------------------------------------------------
     // Step 2b. Compute B_sid
-    //   m_r ←$ Z_q*
-    //   B_sid = G1 + sid·H1 + m_r·H2 ∈ G1
+    //   m_r <-$ Z_q*
+    //   B_sid = G1 + sid*H1 + m_r*H2 in G1
     // ----------------------------------------------------------
     wt.m_r.setByCSPRNG();
- 
+
     {
         mcl::G1 t1, t2;
         mcl::G1::mul(t1, H1, wt.sid);
@@ -141,10 +140,10 @@ BICYCL::CL_HSMqk::CipherText GenIssueMaterial(
         mcl::G1::add(st.B_sid, G1, t1);
         mcl::G1::add(st.B_sid, st.B_sid, t2);
     }
- 
+
     return C_sid;
 }
- 
+
 inline
 BICYCL::CL_HSMqk::CipherText CL_BBS_proof(
     const IssueParams&                    pp,
@@ -153,69 +152,56 @@ BICYCL::CL_HSMqk::CipherText CL_BBS_proof(
     const mcl_WT&                         wt,
     const BICYCL::Mpz&                    rho,
     mcl_COM & com_, mcl_RESP& resp_)
-   // : C_prime_(pp.C_.encrypt(pp.cl_pk_,   BICYCL::CL_HSMqk::ClearText(pp.C_, BICYCL::Mpz("0")),                              BICYCL::Mpz("0"))) 
 {
-    // --------------------------------------------------------
-    // 0. Simple name
-    // --------------------------------------------------------
     const BBSParams&              bbs  = pp.params_;
     const BBS::PublicKey&         bpk  = pp.pk_;
     BICYCL::CL_HSMqk&             CL   = pp.C_;
     BICYCL::RandGen&              rng  = pp.randgen_;
     const BICYCL::CL_HSMqk::PublicKey& cl_pk = pp.cl_pk_;
 
-    const mcl::G1& G1 = bbs.g1;   // generator G1
-    const mcl::G1& H1 = bpk.pks_g1[0]; // H1
-    const mcl::G1& H2 = bpk.pks_g1[1]; // H2
-    const mcl::G1& H_s = pp.H_s;  // H_s  (hashAndMapToG1("H_s"))
+    const mcl::G1& G1 = bbs.g1;
+    const mcl::G1& H1 = bpk.pks_g1[0];
+    const mcl::G1& H2 = bpk.pks_g1[1];
+    const mcl::G1& H_s = pp.H_s;
 
-    // --------------------------------------------------------
-    // Step 1a. Pick  r ←$ Z_q*
-    // --------------------------------------------------------
+    // Step 1a. Pick r <-$ Z_q*
     mcl::Fr r;
     r.setByCSPRNG();
 
-    // --------------------------------------------------------
-    // Step 1b. Compute the base of commitment
-    //   A_bar  ← r · A_ob
-    //   B_bar  ← r(G1 + usk·H1 + r_ob·H2 − e_ob·A_ob)
-    //          = rG1 + (r·usk)H1 + (r·r_ob)H2 + (−e_ob)(r·A_ob)
-    //   N_bar  ← r · null = r · usk · H_s
-    // --------------------------------------------------------
-    const mcl::G1& A_ob  = wt.sig.A;   // A_ob from BBS signature
-    const mcl::Fr& e_ob  = wt.sig.e;   // e_ob
+    const mcl::G1& A_ob  = wt.sig.A;
+    const mcl::Fr& e_ob  = wt.sig.e;
     const mcl::Fr& r_ob  = wt.r_ob;
     const mcl::Fr& usk   = wt.usk;
     const mcl::Fr& sid   = wt.sid;
     const mcl::Fr& m_r   = wt.m_r;
 
+    // ---- A_bar = r * A_ob ----
     mcl::G1 A_bar, B_bar, N_bar;
-    mcl::G1::mul(A_bar, A_ob, r);               // A_bar = r·A_ob
+    mcl::G1::mul(A_bar, A_ob, r);
 
-    // B_bar = r·G1 + (r·usk)·H1 + (r·r_ob)·H2 + (-e_ob)·A_bar
+    // ---- B_bar = r*G1 + (r*usk)*H1 + (r*r_ob)*H2 + (-e)*A_bar ----
+    // Use independent temporaries (no in-place aliasing)
     {
         mcl::Fr r_usk, r_rob, neg_e;
         mcl::Fr::mul(r_usk, r, usk);
         mcl::Fr::mul(r_rob, r, r_ob);
         mcl::Fr::neg(neg_e, e_ob);
 
-        mcl::G1 t1, t2, t3, t4;
+        mcl::G1 t1, t2, t3, t4, s1, s2;
         mcl::G1::mul(t1, G1,    r);
         mcl::G1::mul(t2, H1,    r_usk);
         mcl::G1::mul(t3, H2,    r_rob);
         mcl::G1::mul(t4, A_bar, neg_e);
-        mcl::G1::add(B_bar, t1, t2);
-        mcl::G1::add(B_bar, B_bar, t3);
-        mcl::G1::add(B_bar, B_bar, t4);
+        mcl::G1::add(s1, t1, t2);      // s1 = t1 + t2
+        mcl::G1::add(s2, t3, t4);      // s2 = t3 + t4
+        mcl::G1::add(B_bar, s1, s2);   // B_bar = s1 + s2 (all distinct)
     }
 
-    mcl::G1::mul(N_bar, st.null, r);            // N_bar = r·null
+    mcl::G1::mul(N_bar, st.null, r);
 
-    // --------------------------------------------------------
-    // Step 1c. pick masking factor
-    //   α_r, α_usk, α_ob, α_e, α_sid, α_{m_r} ←$ Z_q
-    //   α_ρ ←$ [0, 2^{λ+λs} · D_q]   (as BICYCL::Mpz element)
-    // --------------------------------------------------------
+    // Step 1c. Pick masking factors
+    //   alpha_r, alpha_usk, alpha_ob, alpha_e, alpha_sid, alpha_mr <-$ Z_q
+    //   alpha_rho <-$ [0, 2^{lambda+lambda_s} * D_q]
     mcl::Fr alpha_r, alpha_usk, alpha_ob, alpha_e, alpha_sid, alpha_mr;
     alpha_r.setByCSPRNG();
     alpha_usk.setByCSPRNG();
@@ -224,42 +210,36 @@ BICYCL::CL_HSMqk::CipherText CL_BBS_proof(
     alpha_sid.setByCSPRNG();
     alpha_mr.setByCSPRNG();
 
-    // α_ρ
     BICYCL::Mpz alpha_rho;
     {
-        // Pick in the interval of [0, bound)
         BICYCL::Mpz bound(CL.encrypt_randomness_bound());
-        BICYCL::Mpz::mulby2k(bound, bound, 256); 
-        BICYCL::Mpz::mulby2k(bound, bound, 40); 
-        BICYCL::Mpz alpha_rho(rng.random_mpz(bound));
+        BICYCL::Mpz::mulby2k(bound, bound, 256);
+        BICYCL::Mpz::mulby2k(bound, bound, 40);
+        alpha_rho = rng.random_mpz(bound);
     }
 
-    // --------------------------------------------------------
-    // Step 1d. Compute the commitment coponents
-    //
-    //   U_{N1} ← α_r · null
-    //   U_{N2} ← α_usk · H_s
-    //   U_{B̄}  ← α_r·G1 + α_e·Ā + α_usk·H1 + α_ob·H2
-    //   U_{B'} ← α_sid·H1 + α_{m_r}·H2
-    //   C'     ← CL.encrypt(0; α_ρ) ⊗ (cl_pk)^{α_sid}
-    //            即 C' = (g_q^{α_ρ}, f^{α_sid}·pk_cl^{α_ρ})
-    // --------------------------------------------------------
-    mcl::G1::mul(com_.U_N1, st.null, alpha_r);          // U_N1 = α_r·null
-    mcl::G1::mul(com_.U_N2, H_s,    alpha_usk);         // U_N2 = α_usk·H_s
+    // Step 1d. Compute the commitment components
+    //   U_N1    = alpha_r * null
+    //   U_N2    = alpha_usk * H_s
+    //   U_barB  = alpha_r*G1 + alpha_e*A_bar + alpha_usk*H1 + alpha_ob*H2
+    //   U_Bprime = alpha_sid*H1 + alpha_mr*H2
+    //   C'      = (g_q^{alpha_rho}, f^{alpha_sid} * pk_cl^{alpha_rho})
+    mcl::G1::mul(com_.U_N1, st.null, alpha_r);
+    mcl::G1::mul(com_.U_N2, H_s,    alpha_usk);
 
-    // U_{B̄} = α_r·G1 + α_e·A_bar + α_usk·H1 + α_ob·H2
+    // U_barB = alpha_r*G1 + alpha_e*A_bar + alpha_usk*H1 + alpha_ob*H2
     {
-        mcl::G1 t1, t2, t3, t4;
+        mcl::G1 t1, t2, t3, t4, s1, s2;
         mcl::G1::mul(t1, G1,    alpha_r);
         mcl::G1::mul(t2, A_bar, alpha_e);
         mcl::G1::mul(t3, H1,    alpha_usk);
         mcl::G1::mul(t4, H2,    alpha_ob);
-        mcl::G1::add(com_.U_barB, t1, t2);
-        mcl::G1::add(com_.U_barB, com_.U_barB, t3);
-        mcl::G1::add(com_.U_barB, com_.U_barB, t4);
+        mcl::G1::add(s1, t1, t2);
+        mcl::G1::add(s2, t3, t4);
+        mcl::G1::add(com_.U_barB, s1, s2);
     }
 
-    // U_{B'} = α_sid·H1 + α_{m_r}·H2
+    // U_Bprime = alpha_sid*H1 + alpha_mr*H2
     {
         mcl::G1 t1, t2;
         mcl::G1::mul(t1, H1, alpha_sid);
@@ -268,75 +248,63 @@ BICYCL::CL_HSMqk::CipherText CL_BBS_proof(
     }
 
     // C': encrypt alpha_sid with randomness alpha_rho
-    // C' = (g_q^{α_ρ}, f^{α_sid} · pk_cl^{α_ρ})
     BICYCL::Mpz alpha_sid_mpz;
-    Fr_to_Mpz(alpha_sid_mpz,alpha_sid);
-    
-    // Enc(pk, m; r) with explicit randomness
+    Fr_to_Mpz(alpha_sid_mpz, alpha_sid);
+    BICYCL::CL_HSMqk::CipherText C_prime(
+        CL, cl_pk, BICYCL::CL_HSMqk::ClearText(CL, alpha_sid_mpz), alpha_rho);
 
-    BICYCL::CL_HSMqk::CipherText C_prime(CL,cl_pk,BICYCL::CL_HSMqk::ClearText(CL, alpha_sid_mpz),  alpha_rho);
+    com_.A_bar = A_bar;
+    com_.B_bar = B_bar;
+    com_.N_bar = N_bar;
 
-    com_.A_bar   = A_bar;
-    com_.B_bar   = B_bar;
-    com_.N_bar   = N_bar;
-
-    // --------------------------------------------------------
-    // Step 2. Fiat-Shamir Challenge value ch
-    // --------------------------------------------------------
+    // Step 2. Fiat-Shamir challenge value ch
     mcl::Fr ch = computeChallenge(st.null, st.B_sid, C_sid, com_, C_prime);
-    // Transfer Fr to Mpz
     BICYCL::Mpz ch_mpz;
     Fr_to_Mpz(ch_mpz, ch);
-    // --------------------------------------------------------
-    // Step 3. Compute the response
-    //   β_r    = α_r  + r   · ch
-    //   β_usk  = α_usk + r   · usk · ch    
-    //   β_ob   = α_ob  + r   · r_ob · ch
-    //   β_e    = α_e   − e_ob · ch
-    //   β_sid  = α_sid + sid  · ch
-    //   β_{mr} = α_{mr}+ m_r  · ch
-    //   β_ρ    = α_ρ   + ρ    · ch   (Mpz operation)
-    // --------------------------------------------------------
-    mcl::Fr ch_r, ch_rusk, ch_rob, ch_usk;
+
+    // Step 3. Compute the responses
+    //   beta_r    = alpha_r    + r * ch
+    //   beta_usk  = alpha_usk  + r * usk * ch
+    //   beta_ob   = alpha_ob   + r * r_ob * ch
+    //   beta_e    = alpha_e    - e_ob * ch
+    //   beta_sid  = alpha_sid  + sid * ch
+    //   beta_mr   = alpha_mr   + m_r * ch
+    //   beta_rho  = alpha_rho  + rho * ch   (Mpz operation)
+    mcl::Fr ch_r, ch_rusk, ch_usk;
     mcl::Fr::mul(ch_r,    r,   ch);
     mcl::Fr::mul(ch_usk,  usk, ch);
-    mcl::Fr::mul(ch_rusk, r,   ch_usk);  // r·usk·ch
+    mcl::Fr::mul(ch_rusk, r,   ch_usk);   // r * usk * ch
 
-    // β_r = α_r + r·ch
+    // beta_r = alpha_r + r*ch
     mcl::Fr::add(resp_.beta_r,   alpha_r,   ch_r);
-
-    // β_usk = α_usk + usk·r.ch  (用于 U_N2 = α_usk·H_s)
+    // beta_usk = alpha_usk + r*usk*ch
     mcl::Fr::add(resp_.beta_usk, alpha_usk, ch_rusk);
 
-    // β_ob = α_ob + r·r_ob·ch
+    // beta_ob = alpha_ob + r*r_ob*ch
     {
         mcl::Fr tmp;
-        mcl::Fr::mul(tmp, r_ob, ch_r);   // r·ch * r_ob
+        mcl::Fr::mul(tmp, r_ob, ch_r);
         mcl::Fr::add(resp_.beta_ob, alpha_ob, tmp);
     }
-
-    // β_e = α_e − e_ob·ch
+    // beta_e = alpha_e - e_ob*ch
     {
         mcl::Fr tmp;
         mcl::Fr::mul(tmp, e_ob, ch);
         mcl::Fr::sub(resp_.beta_e, alpha_e, tmp);
     }
-
-    // β_sid = α_sid + sid·ch
+    // beta_sid = alpha_sid + sid*ch
     {
         mcl::Fr tmp;
         mcl::Fr::mul(tmp, sid, ch);
         mcl::Fr::add(resp_.beta_sid, alpha_sid, tmp);
     }
-
-    // β_{mr} = α_{mr} + m_r·ch
+    // beta_mr = alpha_mr + m_r*ch
     {
         mcl::Fr tmp;
         mcl::Fr::mul(tmp, m_r, ch);
         mcl::Fr::add(resp_.beta_mr, alpha_mr, tmp);
     }
-
-    // β_ρ = α_ρ + ρ·ch  (Mpz)
+    // beta_rho = alpha_rho + rho*ch  (Mpz)
     {
         BICYCL::Mpz rho_ch;
         BICYCL::Mpz::mul(rho_ch, rho, ch_mpz);
@@ -344,7 +312,6 @@ BICYCL::CL_HSMqk::CipherText CL_BBS_proof(
     }
     return C_prime;
 }
-
 
 inline
 bool CL_BBS_verify(
@@ -366,12 +333,12 @@ bool CL_BBS_verify(
     const mcl::G1& H2  = bpk.pks_g1[1];
     const mcl::G1& H_s = pp.H_s;
 
-    const mcl::G1& A_bar    = com_.A_bar;
-    const mcl::G1& B_bar    = com_.B_bar;
-    const mcl::G1& N_bar    = com_.N_bar;
+    const mcl::G1& A_bar = com_.A_bar;
+    const mcl::G1& B_bar = com_.B_bar;
+    const mcl::G1& N_bar = com_.N_bar;
 
     // --------------------------------------------------------
-    // a. Check if A_bar is the identity element (A_bar ≠ 1_{G1})
+    // a. Check that A_bar is not the identity element (A_bar != 1_{G1})
     // --------------------------------------------------------
     if (A_bar.isZero()) {
         std::cerr << "[Verify Failed] Step (a): A_bar is zero point." << std::endl;
@@ -379,20 +346,20 @@ bool CL_BBS_verify(
     }
 
     // --------------------------------------------------------
-    // Recompute Challenge (Fiat-Shamir heuristic)
+    // Recompute the challenge (Fiat-Shamir heuristic)
     // --------------------------------------------------------
     mcl::Fr ch = computeChallenge(st.null, st.B_sid, C_sid, com_, C_prime_);
     BICYCL::Mpz ch_mpz;
     Fr_to_Mpz(ch_mpz, ch);
 
     // --------------------------------------------------------
-    // b. Range Check: β_ρ ∈ [0, 2^{λ + λs} · D_q]
+    // b. Range check: beta_rho in [0, 2^{lambda + lambda_s} * D_q]
     // --------------------------------------------------------
     const BICYCL::Mpz& beta_rho_val = resp_.beta_rho;
     {
         BICYCL::Mpz bound(CL.encrypt_randomness_bound());
-        BICYCL::Mpz::mulby2k(bound, bound, 256); // Security parameter lambda
-        BICYCL::Mpz::mulby2k(bound, bound, 40);  // Statistical parameter lambda_s
+        BICYCL::Mpz::mulby2k(bound, bound, 256); // security parameter lambda
+        BICYCL::Mpz::mulby2k(bound, bound, 40);  // statistical parameter lambda_s
         if (beta_rho_val < BICYCL::Mpz(0L) || beta_rho_val >= bound) {
             std::cerr << "[Verify Failed] Step (b): beta_rho is out of range." << std::endl;
             return false;
@@ -400,13 +367,13 @@ bool CL_BBS_verify(
     }
 
     // --------------------------------------------------------
-    // c. Pairing Check: e(A_bar, X) = e(B_bar, G2)
+    // c. Pairing check: e(A_bar, X) = e(B_bar, G2)
     //    Verifies the structure of the BBS signature
     // --------------------------------------------------------
     {
         mcl::GT lhs, rhs;
         mcl::pairing(lhs, A_bar, bpk.pk_g2);   // e(A_bar, pk_g2)
-        mcl::pairing(rhs, B_bar, G2);           // e(B_bar, g2)
+        mcl::pairing(rhs, B_bar, G2);          // e(B_bar, g2)
         if (lhs != rhs) {
             std::cerr << "[Verify Failed] Step (c): Pairing e(A_bar, X) == e(B_bar, G2) failed." << std::endl;
             return false;
@@ -419,8 +386,8 @@ bool CL_BBS_verify(
     {
         mcl::G1 lhs, rhs, ch_Nbar;
         mcl::G1::mul(ch_Nbar, N_bar, ch);
-        mcl::G1::add(lhs, com_.U_N1, ch_Nbar);          
-        mcl::G1::mul(rhs, st.null, resp_.beta_r);   
+        mcl::G1::add(lhs, com_.U_N1, ch_Nbar);
+        mcl::G1::mul(rhs, st.null, resp_.beta_r);
         if (lhs != rhs) {
             std::cerr << "[Verify Failed] Step (d): Equation U_N1 + ch*N_bar == beta_r*null failed." << std::endl;
             return false;
@@ -433,8 +400,8 @@ bool CL_BBS_verify(
     {
         mcl::G1 lhs, rhs, ch_Nbar;
         mcl::G1::mul(ch_Nbar, N_bar, ch);
-        mcl::G1::add(lhs, com_.U_N2, ch_Nbar);            
-        mcl::G1::mul(rhs, H_s, resp_.beta_usk);      
+        mcl::G1::add(lhs, com_.U_N2, ch_Nbar);
+        mcl::G1::mul(rhs, H_s, resp_.beta_usk);
         if (lhs != rhs) {
             std::cerr << "[Verify Failed] Step (e): Equation U_N2 + ch*N_bar == beta_usk*H_s failed." << std::endl;
             return false;
@@ -442,7 +409,7 @@ bool CL_BBS_verify(
     }
 
     // --------------------------------------------------------
-    // f. Commitment consistency: U_B_bar + ch * B_bar = ...
+    // f. Commitment consistency: U_barB + ch * B_bar = ...
     // --------------------------------------------------------
     {
         mcl::G1 lhs, rhs;
@@ -466,7 +433,7 @@ bool CL_BBS_verify(
     }
 
     // --------------------------------------------------------
-    // g. Commitment consistency: U_B_prime + ch * (B_sid - G1) = ...
+    // g. Commitment consistency: U_Bprime + ch * (B_sid - G1) = ...
     // --------------------------------------------------------
     {
         mcl::G1 lhs, rhs;
@@ -497,7 +464,7 @@ bool CL_BBS_verify(
         BICYCL::Mpz beta_sid_mpz;
         Fr_to_Mpz(beta_sid_mpz, resp_.beta_sid);
 
-        // Compute LHS: Re-encrypt using response values
+        // Compute LHS: re-encrypt using the response values
         BICYCL::CL_HSMqk::CipherText lhs_ct = CL.encrypt(cl_pk,
                        BICYCL::CL_HSMqk::ClearText(CL, beta_sid_mpz),
                        beta_rho_val);
@@ -508,12 +475,12 @@ bool CL_BBS_verify(
 
         // Compare ciphertext components c1 and c2
         if (!(lhs_ct.c1() == rhs_ct.c1()) || !(lhs_ct.c2() == rhs_ct.c2())) {
-            std::cerr << "[Verify Failed] Step (h): CL Homomorphic ciphertext equation failed." << std::endl;
+            std::cerr << "[Verify Failed] Step (h): CL homomorphic ciphertext equation failed." << std::endl;
             return false;
         }
     }
 
-    // If all checks pass, verification is successful
+    // All checks passed: verification succeeds
     return true;
 }
 
@@ -524,6 +491,7 @@ inline BICYCL::Mpz factorial(size_t value) {
     }
     return result;
 }
+
 inline BICYCL::Mpz cl_lagrange_at_zero(size_t bound,
                                        size_t party_id,
                                        const BICYCL::Mpz& delta) {
@@ -531,7 +499,7 @@ inline BICYCL::Mpz cl_lagrange_at_zero(size_t bound,
     BICYCL::Mpz denominator("1");
     BICYCL::Mpz result;
 
-    for (size_t current_party_id = 1; current_party_id<= bound; current_party_id++) {
+    for (size_t current_party_id = 1; current_party_id <= bound; current_party_id++) {
         if (current_party_id == party_id) {
             continue;
         }
@@ -549,13 +517,12 @@ inline BICYCL::Mpz cl_lagrange_at_zero(size_t bound,
     BICYCL::Mpz::mul(result, result, numerator);
     return result;
 }
-    
+
 inline
 void partial_decrypt(const BICYCL::CL_HSMqk&             CL,
-                    const BICYCL::CL_HSMqk::SecretKey& secret_key_share,
-                            const BICYCL::CL_HSMqk::CipherText& ciphertext,
-                            BICYCL::QFI& partial_decryption) {
-  //  BICYCL::CL_HSMqk&             CL    = pp.C_;
+                     const BICYCL::CL_HSMqk::SecretKey& secret_key_share,
+                     const BICYCL::CL_HSMqk::CipherText& ciphertext,
+                     BICYCL::QFI& partial_decryption) {
     BICYCL::Mpz secret_key_mpz(secret_key_share);
     BICYCL::Mpz::mod(secret_key_mpz, secret_key_mpz, CL.secretkey_bound());
 
@@ -564,17 +531,18 @@ void partial_decrypt(const BICYCL::CL_HSMqk&             CL,
         CL.from_Cl_DeltaK_to_Cl_Delta(partial_decryption);
     }
 }
+
 inline
 BICYCL::CL_HSMqk::ClearText aggregate_partial_ciphertext(const BICYCL::CL_HSMqk&             CL, size_t bound,
     const std::vector<BICYCL::QFI>& partial_decryptions,
     const BICYCL::CL_HSMqk::CipherText& ciphertext,
     const BICYCL::Mpz delta)  {
     BICYCL::QFI aggregated_ciphertext = ciphertext.c2();
-    for (size_t party_id=1; party_id <= bound; party_id++) {
+    for (size_t party_id = 1; party_id <= bound; party_id++) {
         BICYCL::QFI lagrange_component;
         CL.Cl_G().nupow(
             lagrange_component,
-            partial_decryptions[party_id-1],
+            partial_decryptions[party_id - 1],
             cl_lagrange_at_zero(bound, party_id, delta));
         CL.Cl_Delta().nucompinv(
             aggregated_ciphertext, aggregated_ciphertext, lagrange_component);
@@ -583,9 +551,5 @@ BICYCL::CL_HSMqk::ClearText aggregate_partial_ciphertext(const BICYCL::CL_HSMqk&
     return BICYCL::CL_HSMqk::ClearText(
         CL, CL.dlog_in_F(aggregated_ciphertext));
 }
-        
-
-
-
 
 #endif // PROVECL_H

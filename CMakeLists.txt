@@ -102,3 +102,9 @@ if(BBSAC_BUILD_TESTS)
 endif()
 
 
+add_custom_command(TARGET bbsac_cli POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/g1_arr_1000000.bin"
+        "$<TARGET_FILE_DIR:bbsac_cli>/g1_arr_1000000.bin"
+    COMMENT "Copying g1_arr_1000000.bin to executable output directory..."
+)

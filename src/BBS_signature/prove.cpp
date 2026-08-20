@@ -3,6 +3,15 @@
 #include <string>
 #include <utility>
 #include <random>
+#include <fstream>
+
+// ── G1 Serialization ────────────────────
+static constexpr size_t G1_BYTES = 48;
+static void g1ToBytes(const G1& p, uint8_t out[G1_BYTES]) {
+    size_t n = p.serialize(out, G1_BYTES);
+    assert(n == G1_BYTES);
+}
+
 
 size_t ceil_log2(size_t N) {
     size_t k = 0;
@@ -20,6 +29,26 @@ size_t next_pow2(size_t x) {
         v <<= 1;
     }
     return v;
+}
+// File-based binary search (keep file open to avoid repeated open/close overhead)
+int binarySearchBinary(const std::string& filename, size_t N, const G1& target) {
+    uint8_t target_bytes[G1_BYTES];
+    g1ToBytes(target, target_bytes);
+
+    std::ifstream ifs(filename, std::ios::binary);
+    int left = 0, right = static_cast<int>(N) - 1;
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+        ifs.seekg(static_cast<std::streamoff>(mid * G1_BYTES));
+        uint8_t buf[G1_BYTES];
+        ifs.read(reinterpret_cast<char*>(buf), G1_BYTES);
+
+        int cmp = std::memcmp(buf, target_bytes, G1_BYTES);
+        if (cmp == 0)      return mid;
+        else if (cmp < 0)  left = mid + 1;
+        else               right = mid - 1;
+    }
+    return -1;
 }
 
 ACProof::ACProof(publicParams& pp) : pp_(pp) {}
@@ -186,7 +215,7 @@ ACProof::proof ACProof::Prove(const ACProof::statement& st, const ACProof::witne
    
     return {cm, rp, proof};
 }
-bool ACProof::Verify(const ACProof::statement& st, const ACProof::proof& pf) {
+bool ACProof::Verify(const ACProof::statement& st, const ACProof::proof& pf, const std::string& filename, size_t N) {
     // 1. Initial check
     if (pf.cm.A_bar.isZero()) {
         std::cout << "[Verify] Failed: A_bar is zero." << std::endl;
@@ -314,6 +343,15 @@ bool ACProof::Verify(const ACProof::statement& st, const ACProof::proof& pf) {
         std::cout << "[Verify] Failed at range proof" << std::endl;
         return false;
     }
+
+    auto idx = binarySearchBinary(filename, N, st.tag);
+    if (idx > -1){
+        std::cout << "[Verify] Failed -- The tag has been revoked" << std::endl;
+        return false;
+    }
+    
+
+
     std::cout << "[Verify] All checks passed!" << std::endl;
     return true;
 }
@@ -327,8 +365,8 @@ bool ACProof::Verify(const ACProof::statement& st, const ACProof::proof& pf) {
         
     }
 
-void ACProof::GenMatrials(std::vector<mcl::Fr>& messages,
-    BBS::Signature &sig,
+void ACProof::GenMatrials(const std::vector<mcl::Fr>& messages,
+    const BBS::Signature &sig,
     ACProof::statement &st, ACProof::witness &wt){
         wt.sid = messages[0];
         wt.m_r = messages[1];

@@ -107,8 +107,8 @@ int binarySearchMem(const std::vector<G1>& arr, const G1& target) {
 int main() {
     initPairing(mcl::BLS12_381);
 
-    const size_t N = 100000;
-    const std::string filename = "g1_arr_10000000.bin";
+    const size_t N = 1000000;
+    const std::string filename = "g1_arr_1000000.bin";
 
     G1 base;
     mcl::hashAndMapToG1(base, "base", 4);
@@ -132,8 +132,8 @@ int main() {
     }
     printf("  file size: %.1f MB\n\n",
            static_cast<double>(N * G1_BYTES) / 1e6);
-           */
-
+           
+*/
     // ── 2. Pick test targets (already in memory, lookup time not counted) ────────────────────────
     std::vector<size_t> test_indices = {0, N/4, N/2, N*3/4, N-1};
     std::vector<G1> targets;

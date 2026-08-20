@@ -6,21 +6,25 @@
 #include <utility>
 
 #include <mcl/bls12_381.hpp>
-struct BBSParams{
-    mcl::CurveParam curve_param;
-    size_t message_count;
-    mcl::G1 g1;
-    mcl::G2 g2;
-    BBSParams(mcl::CurveParam curve_param,size_t message_count)
-    {
-        if (message_count == 0) {
-            throw std::invalid_argument("message count must be > 0");
-        }
 
-        initPairing(curve_param);
-        mcl::hashAndMapToG1(g1, "1");
-        mcl::hashAndMapToG2(g2, "1");
+struct BBSParams {
+mcl::CurveParam curve_param;
+size_t message_count;
+mcl::G1 g1;
+mcl::G2 g2;
+
+BBSParams(mcl::CurveParam curve_param, size_t message_count)
+    : curve_param(curve_param),        
+      message_count(message_count)     
+{
+    if (message_count == 0) {
+        throw std::invalid_argument("message count must be > 0");
     }
+
+    initPairing(this->curve_param);
+    mcl::hashAndMapToG1(g1, "1");
+    mcl::hashAndMapToG2(g2, "1");
+}
 };
 
 

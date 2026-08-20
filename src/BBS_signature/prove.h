@@ -60,9 +60,9 @@ public:
         resp rp;
         RangeProof proof;
     };
-    void GenMatrials(std::vector<mcl::Fr>& messages,BBS::Signature &sig,statement &st, witness &wt);
+    void GenMatrials(const std::vector<mcl::Fr>& messages,const BBS::Signature &sig,statement &st, witness &wt);
     proof Prove(const statement& st, const witness& wt);
-    bool Verify(const statement& st, const proof& pf);
+    bool Verify(const statement& st, const proof& pf, const std::string& filename, size_t N);
     
 private:
     publicParams& pp_;

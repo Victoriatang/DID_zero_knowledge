@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <cstdio>
 
 
 //BBS implementation
@@ -51,6 +52,7 @@ mcl::G1 BBS::compute_B(const std::vector<mcl::Fr>& messages, const PublicKey& pk
 BBS::Signature BBS::sign(const std::vector<mcl::Fr>& messages, const PublicKey& pk, const SecretKey& sk) {
     mcl::Fr e;
     e.setByCSPRNG();
+
 
     mcl::G1 B = compute_B(messages, pk);
 
